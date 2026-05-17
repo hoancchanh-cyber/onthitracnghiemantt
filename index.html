@@ -1,341 +1,71 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hệ Thống Thi Trắc Nghiệm Online</title>
+  <style>
+    /* Làm cho khung hình tràn toàn màn hình */
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      width: 100%;
+      overflow: hidden; /* Chặn thanh cuộn kép */
+      background-color: #f5f5f5;
+    }
 
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+    /* Định dạng Iframe */
+    iframe {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
 
-<title>Hệ thống Quản lý Hồ sơ Địa chính</title>
+    /* Hiệu ứng loading trong khi chờ Google Script tải */
+    .loading-overlay {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: white;
+      z-index: -1; /* Nằm dưới iframe */
+    }
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #1976d2;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
 
-<style>
-
-:root{
---primary:#2563eb;
---danger:#dc2626;
---success:#16a34a;
---bg:#f1f5f9;
-}
-
-body{
-font-family:system-ui;
-background:var(--bg);
-margin:0;
-}
-
-.sidebar{
-width:240px;
-height:100vh;
-background:#1e293b;
-color:white;
-position:fixed;
-}
-
-.sidebar h2{
-padding:20px;
-}
-
-.sidebar button{
-width:100%;
-padding:12px;
-border:none;
-background:none;
-color:white;
-text-align:left;
-cursor:pointer;
-}
-
-.sidebar button:hover{
-background:#334155;
-}
-
-.main{
-margin-left:240px;
-padding:20px;
-}
-
-.card{
-background:white;
-border-radius:10px;
-padding:20px;
-margin-bottom:20px;
-box-shadow:0 2px 6px rgba(0,0,0,.08);
-}
-
-table{
-width:100%;
-border-collapse:collapse;
-}
-
-th,td{
-padding:10px;
-border-bottom:1px solid #eee;
-}
-
-.pagination button{
-margin:2px;
-}
-
-</style>
-
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
 </head>
-
 <body>
 
-<div class="sidebar">
-
-<h2>📁 Hồ sơ</h2>
-
-<button onclick="Router.go('dashboard')">Dashboard</button>
-<button onclick="Router.go('hoso')">Danh sách hồ sơ</button>
-<button onclick="Router.go('thutuc')">Thủ tục</button>
-
-</div>
-
-<div class="main">
-
-<div id="app"></div>
-
-</div>
-
-<script>
-
-/* =====================
-CONFIG
-===================== */
-
-const CONFIG={
-API:"https://script.google.com/macros/s/AKfycbxAi6WLBCeP87x7iYUP0YvTUw1BJUVsmU0J8tHWKxUz3VhzRDlVLKscaWGSFlEtRP47/exec",
-PER_PAGE:10
-}
-
-/* =====================
-STATE
-===================== */
-
-const STATE={
-hoso:[],
-thutuc:[],
-view:"dashboard",
-page:1,
-search:""
-}
-
-/* =====================
-API
-===================== */
-
-const API={
-
-async getHoSo(){
-
-let r=await fetch(CONFIG.API+"?action=getHoSo")
-return await r.json()
-
-},
-
-async getThuTuc(){
-
-let r=await fetch(CONFIG.API+"?action=getThuTuc")
-return await r.json()
-
-}
-
-}
-
-/* =====================
-ROUTER
-===================== */
-
-const Router={
-
-go(v){
-
-STATE.view=v
-Render.app()
-
-}
-
-}
-
-/* =====================
-UTILS
-===================== */
-
-const Utils={
-
-currency(v){
-
-return Number(v).toLocaleString()
-
-}
-
-}
-
-/* =====================
-RENDER
-===================== */
-
-const Render={
-
-app(){
-
-if(STATE.view==="dashboard")
-Render.dashboard()
-
-if(STATE.view==="hoso")
-Render.hoso()
-
-if(STATE.view==="thutuc")
-Render.thutuc()
-
-},
-
-dashboard(){
-
-let total=STATE.hoso.length
-
-let html=`
-
-<div class="card">
-<h3>Tổng hồ sơ: ${total}</h3>
-</div>
-
-<div class="card">
-<canvas id="chart"></canvas>
-</div>
-
-`
-
-document.getElementById("app").innerHTML=html
-
-Render.chart()
-
-},
-
-chart(){
-
-let done=STATE.hoso.filter(x=>x["Trạng thái"]==="Hoàn thành").length
-let process=STATE.hoso.filter(x=>x["Trạng thái"]==="Đang xử lý").length
-let late=STATE.hoso.filter(x=>x["Trạng thái"]==="Quá hạn").length
-
-new Chart(document.getElementById("chart"),{
-
-type:"doughnut",
-
-data:{
-labels:["Hoàn thành","Đang xử lý","Quá hạn"],
-datasets:[{data:[done,process,late]}]
-}
-
-})
-
-},
-
-hoso(){
-
-let rows=STATE.hoso.map(r=>`
-
-<tr>
-<td>${r["Mã HS"]}</td>
-<td>${r["Người nộp"]}</td>
-<td>${r["Tên thủ tục"]}</td>
-<td>${r["Ngày nhận"]}</td>
-<td>${r["Trạng thái"]}</td>
-</tr>
-
-`).join("")
-
-let html=`
-
-<div class="card">
-
-<input id="search" placeholder="Tìm hồ sơ">
-
-<table>
-
-<thead>
-<tr>
-<th>Mã HS</th>
-<th>Người nộp</th>
-<th>Thủ tục</th>
-<th>Ngày nhận</th>
-<th>Trạng thái</th>
-</tr>
-</thead>
-
-<tbody>${rows}</tbody>
-
-</table>
-
-</div>
-
-`
-
-document.getElementById("app").innerHTML=html
-
-},
-
-thutuc(){
-
-let rows=STATE.thutuc.map(t=>`
-
-<tr>
-<td>${t["Mã Thủ tục"]}</td>
-<td>${t["Tên thủ tục"]}</td>
-<td>${t["Thời hạn (ngày)"]}</td>
-<td>${Utils.currency(t["Lệ phí mặc định"])}</td>
-</tr>
-
-`).join("")
-
-let html=`
-
-<div class="card">
-
-<table>
-
-<thead>
-<tr>
-<th>Mã</th>
-<th>Tên thủ tục</th>
-<th>Thời hạn</th>
-<th>Lệ phí</th>
-</tr>
-
-</thead>
-
-<tbody>${rows}</tbody>
-
-</table>
-
-</div>
-
-`
-
-document.getElementById("app").innerHTML=html
-
-}
-
-}
-
-/* =====================
-INIT
-===================== */
-
-async function init(){
-
-STATE.hoso=await API.getHoSo()
-STATE.thutuc=await API.getThuTuc()
-
-Render.app()
-
-}
-
-init()
-
-</script>
+  <!-- Lớp phủ thông báo đang tải (sẽ hiện ra nếu mạng chậm) -->
+  <div class="loading-overlay">
+    <div class="spinner"></div>
+    <p style="font-family: sans-serif; color: #666; margin-top: 15px;">Đang tải bài thi...</p>
+  </div>
+
+  <!-- NHÚNG LINK CỦA BẠN VÀO ĐÂY -->
+  <iframe 
+    src="https://script.google.com/macros/s/AKfycbypFMwhEkoCyHtm8bFCUzqrWrXYhTUJMDCE2e3z6ww1PiSJHKv3F-3W6q52EAtQfiY/exec"
+    allow="autoplay; camera; microphone; geolocation"
+    allowfullscreen>
+  </iframe>
 
 </body>
 </html>
